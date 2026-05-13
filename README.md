@@ -1,0 +1,1 @@
+Fork of https://greasyfork.org/en/scripts/556165-arson-bang-for-buck that fixes CSS selectors and makes it slightly more performant.
