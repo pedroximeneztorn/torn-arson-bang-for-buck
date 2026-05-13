@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Arson bang for buck
 // @namespace    Para_Thenics.torn.com
-// @version      1.00.038
+// @version      1.00.039
 // @description  Display profit per nerve and how to perform
 // @author       Para_Thenics, auboli77
 // @match        https://www.torn.com/page.php?sid=crimes*
