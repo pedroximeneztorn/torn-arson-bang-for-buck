@@ -4046,38 +4046,75 @@ function addTooltips() {
 
 
 
-const observer = new MutationObserver(() => {
-    addTooltips();
-    createSettingsUI();
+// DOM mutation handling: batch rapid mutations into one update per frame, and
+// guard against the update itself triggering re-entry from observed mutations.
+const enqueueUpdate = typeof window.requestAnimationFrame === 'function'
+    ? (cb) => window.requestAnimationFrame(cb)
+    : (cb) => setTimeout(cb, 50);
+let isUpdating = false;
+let updateScheduled = false;
 
-    // Remove Torn's highlight
-    const crimeOptionWrapperClass = findClass('crimeOptionWrapper');
-    const pendingSelector = crimeOptionWrapperClass
-        ? `.${crimeOptionWrapperClass}.pending-collect`
-        : '.pending-collect';
-    document.querySelectorAll(pendingSelector).forEach(el => {
-        el.classList.remove('pending-collect');
-    });
-
-    // Highlight Collect and 2 softly if both exist
-    const childrenWrapperClass = findClass('childrenWrapper');
-    if (childrenWrapperClass) {
-        document.querySelectorAll(`.${childrenWrapperClass}`).forEach(btn => {
-            const text = btn.textContent.trim();
-            if (text.includes('Collect') && text.includes('2')) {
-                btn.style.color = '#28a745';
-                btn.style.fontWeight = 'bold';
-            } else {
-                btn.style.color = '';
-                btn.style.fontWeight = '';
-            }
-        });
+function scheduleUpdate(runImmediately = false) {
+    if (runImmediately) {
+        updateScheduled = false;
+        doUpdate();
+        return;
     }
-});
+    if (updateScheduled) {
+        return;
+    }
+    updateScheduled = true;
+    enqueueUpdate(() => {
+        updateScheduled = false;
+        doUpdate();
+    });
+}
 
-//  Observe without delay
-observer.observe(document.body, { childList: true, subtree: true });
+function doUpdate() {
+    if (isUpdating) return;
+    isUpdating = true;
+    try {
+        addTooltips();
+        createSettingsUI();
 
+        // Remove Torn's highlight
+        const crimeOptionWrapperClass = findClass('crimeOptionWrapper');
+        const pendingSelector = crimeOptionWrapperClass
+            ? `.${crimeOptionWrapperClass}.pending-collect`
+            : '.pending-collect';
+        document.querySelectorAll(pendingSelector).forEach(el => {
+            el.classList.remove('pending-collect');
+        });
 
-    addTooltips();
+        // Highlight Collect and 2 softly if both exist
+        const childrenWrapperClass = findClass('childrenWrapper');
+        if (childrenWrapperClass) {
+            document.querySelectorAll(`.${childrenWrapperClass}`).forEach(btn => {
+                const text = btn.textContent.trim();
+                if (text.includes('Collect') && text.includes('2')) {
+                    btn.style.color = '#28a745';
+                    btn.style.fontWeight = 'bold';
+                } else {
+                    btn.style.color = '';
+                    btn.style.fontWeight = '';
+                }
+            });
+        }
+    } finally {
+        isUpdating = false;
+    }
+}
+
+const observer = new MutationObserver(() => scheduleUpdate());
+
+function startObserver() {
+    observer.observe(document.body, { childList: true, subtree: true });
+    scheduleUpdate(true);
+}
+
+if (document.body) {
+    startObserver();
+} else {
+    document.addEventListener('DOMContentLoaded', startObserver);
+}
 })();
