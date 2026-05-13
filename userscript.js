@@ -3602,11 +3602,54 @@ console.log('Dark Mode detected:', isDarkModeEnabled());
 
 
 
+    //  CSS module class name resolver
+    //  Torn uses hashed CSS module class names (e.g. `sections___tZPkg`) whose
+    //  suffix changes between builds. Look them up by prefix at runtime.
+    const classCache = {};
+
+    function findClass(prefix) {
+        if (classCache[prefix]) return classCache[prefix];
+
+        if (document.querySelector(`.${prefix}`)) {
+            classCache[prefix] = prefix;
+            return prefix;
+        }
+
+        const el = document.querySelector(`[class*="${prefix}___"]`);
+        if (el) {
+            const match = el.className.match(new RegExp(`${prefix}___\\w+`));
+            if (match) {
+                classCache[prefix] = match[0];
+                return match[0];
+            }
+        }
+
+        for (const sheet of document.styleSheets) {
+            try {
+                for (const rule of sheet.cssRules || []) {
+                    if (rule.selectorText && rule.selectorText.includes(`${prefix}___`)) {
+                        const match = rule.selectorText.match(new RegExp(`${prefix}___\\w+`));
+                        if (match) {
+                            classCache[prefix] = match[0];
+                            return match[0];
+                        }
+                    }
+                }
+            } catch (e) {
+                // Cross-origin stylesheets will throw
+            }
+        }
+
+        return null;
+    }
+
+
     //  Settings UI
 
 
 function createSettingsUI() {
-    const header = document.querySelector('#react-root > div > div.appHeader___gUnYC.crimes-app-header');
+    const appHeaderClass = findClass('appHeader');
+    const header = document.querySelector(appHeaderClass ? `.${appHeaderClass}.crimes-app-header` : '.crimes-app-header');
     if (!header) return;
 
     const hasArson = header.textContent.includes('Arson');
@@ -3939,10 +3982,26 @@ function addTooltips() {
     const skillValue = getSkillValue();
     const hasFlamethrower = skillValue >= 80;
 
-    document.querySelectorAll('.sections___tZPkg').forEach(section => {
+    const sectionsClass = findClass('sections');
+    if (!sectionsClass) return;
+
+    const scenarioClass = findClass('scenario');
+    const crimeOptionSectionClass = findClass('crimeOptionSection');
+    const flexGrowClass = findClass('flexGrow');
+    const titleSectionClass = findClass('titleSection');
+    const titleClass = findClass('title');
+
+    const hoverSelector = [crimeOptionSectionClass, flexGrowClass, titleSectionClass]
+        .filter(Boolean)
+        .map(c => `.${c}`)
+        .join('');
+
+    document.querySelectorAll(`.${sectionsClass}`).forEach(section => {
         if (section.dataset.tooltipAdded) return;
 
-        const scenarioName = section.querySelector('.scenario___msSka')?.textContent?.trim();
+        const scenarioName = scenarioClass
+            ? section.querySelector(`.${scenarioClass}`)?.textContent?.trim()
+            : null;
         if (!scenarioName || !scenarios[scenarioName]) return;
 
         const variants = scenarios[scenarioName];
@@ -3954,8 +4013,8 @@ function addTooltips() {
 
         const tooltip = createTooltip(selectedVariant, section, section);
 
-        const hoverTarget = section.querySelector('.crimeOptionSection___hslpu.flexGrow___S5IUQ.titleSection___CiZ8O');
-        const iconTarget = section.querySelector('.title___lw1Jr'); // ✅ Only this small clickable area
+        const hoverTarget = hoverSelector ? section.querySelector(hoverSelector) : null;
+        const iconTarget = titleClass ? section.querySelector(`.${titleClass}`) : null; // ✅ Only this small clickable area
 
         // Desktop hover
         if (hoverTarget) {
@@ -3992,21 +4051,28 @@ const observer = new MutationObserver(() => {
     createSettingsUI();
 
     // Remove Torn's highlight
-    document.querySelectorAll('.crimeOptionWrapper___IOnLO.pending-collect').forEach(el => {
+    const crimeOptionWrapperClass = findClass('crimeOptionWrapper');
+    const pendingSelector = crimeOptionWrapperClass
+        ? `.${crimeOptionWrapperClass}.pending-collect`
+        : '.pending-collect';
+    document.querySelectorAll(pendingSelector).forEach(el => {
         el.classList.remove('pending-collect');
     });
 
     // Highlight Collect and 2 softly if both exist
-    document.querySelectorAll('.childrenWrapper___h2Sw5').forEach(btn => {
-        const text = btn.textContent.trim();
-        if (text.includes('Collect') && text.includes('2')) {
-            btn.style.color = '#28a745';
-            btn.style.fontWeight = 'bold';
-        } else {
-            btn.style.color = '';
-            btn.style.fontWeight = '';
-        }
-    });
+    const childrenWrapperClass = findClass('childrenWrapper');
+    if (childrenWrapperClass) {
+        document.querySelectorAll(`.${childrenWrapperClass}`).forEach(btn => {
+            const text = btn.textContent.trim();
+            if (text.includes('Collect') && text.includes('2')) {
+                btn.style.color = '#28a745';
+                btn.style.fontWeight = 'bold';
+            } else {
+                btn.style.color = '';
+                btn.style.fontWeight = '';
+            }
+        });
+    }
 });
 
 //  Observe without delay
