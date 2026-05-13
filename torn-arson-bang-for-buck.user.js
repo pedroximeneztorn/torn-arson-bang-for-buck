@@ -3595,33 +3595,44 @@
   //  suffix changes between builds. Look them up by prefix at runtime.
   const classCache = {};
 
-  function findClass(prefix) {
+  // Pass skipPlain=true for generic prefixes (e.g. "title") that are likely to
+  // collide with an unrelated plain class elsewhere on the page.
+  function findClass(prefix, skipPlain = false) {
     if (classCache[prefix]) return classCache[prefix];
 
-    if (document.querySelector(`.${prefix}`)) {
+    if (!skipPlain && document.querySelector(`.${prefix}`)) {
       classCache[prefix] = prefix;
       return prefix;
     }
 
-    const el = document.querySelector(`[class*="${prefix}___"]`);
+    // Anchor to a class boundary so e.g. prefix "title" doesn't match a
+    // "subtitle___xxx" class (where "title___" appears mid-token).
+    const el = document.querySelector(
+      `[class^="${prefix}___"], [class*=" ${prefix}___"]`,
+    );
     if (el) {
-      const match = el.className.match(new RegExp(`${prefix}___\\w+`));
+      const match = el.className.match(
+        new RegExp(`(?:^|\\s)(${prefix}___\\w+)`),
+      );
       if (match) {
-        classCache[prefix] = match[0];
-        return match[0];
+        classCache[prefix] = match[1];
+        return match[1];
       }
     }
 
     for (const sheet of document.styleSheets) {
       try {
         for (const rule of sheet.cssRules || []) {
-          if (rule.selectorText && rule.selectorText.includes(`${prefix}___`)) {
+          if (
+            rule.selectorText &&
+            rule.selectorText.includes(`.${prefix}___`)
+          ) {
             const match = rule.selectorText.match(
-              new RegExp(`${prefix}___\\w+`),
+              new RegExp(`\\.(${prefix}___\\w+)`),
             );
             if (match) {
-              classCache[prefix] = match[0];
-              return match[0];
+              classCache[prefix] = match[1];
+              return match[1];
             }
           }
         }
@@ -4012,7 +4023,9 @@
     const crimeOptionSectionClass = findClass("crimeOptionSection");
     const flexGrowClass = findClass("flexGrow");
     const titleSectionClass = findClass("titleSection");
-    const titleClass = findClass("title");
+    // "title" is too generic — skip the plain-class fallback so we don't pick
+    // up an unrelated <* class="title"> elsewhere on the page.
+    const titleClass = findClass("title", true);
 
     const hoverSelector = [
       crimeOptionSectionClass,
